@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .status-box {
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .status-authenticated {
+            background-color: #e8f5e9;
+            border: 1px solid #a5d6a7;
+            color: #2e7d32;
+        }
+
+        .status-unauthenticated {
+            background-color: #ffebee;
+            border: 1px solid #ef9a9a;
+            color: #c62828;
+        }
+
+        .status-loading {
+            background-color: #e3f2fd;
+            border: 1px solid #90caf9;
+            color: #1565c0;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #2196f3;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .btn:hover {
+            background-color: #1976d2;
+        }
+
+        .btn:disabled {
+            background-color: #bdbdbd;
+            cursor: not-allowed;
+        }
+
+        .btn-logout {
+            background-color: #f44336;
+        }
+
+        .btn-logout:hover {
+            background-color: #d32f2f;
+        }
+
+        .actions {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .log-container {
+            margin-top: 30px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .log-time {
+            color: #757575;
+            margin-right: 5px;
+        }
+
+        .log-info {
+            color: #1565c0;
+        }
+
+        .log-error {
+            color: #c62828;
+        }
+
+        .log-success {
+            color: #2e7d32;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Authentication Demo</h1>
+
+        <div id="statusBox" class="status-box status-loading">
+            Checking authentication status...
+        </div>
+
+        <div class="actions">
+            <button id="loginBtn" class="btn" disabled>Log In</button>
+            <button id="checkAuthBtn" class="btn" disabled>Check Auth Status</button>
+            <button id="logoutBtn" class="btn btn-logout" disabled>Log Out</button>
+        </div>
+
+        <div class="log-container">
+            <div id="logEntries"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE_URL = 'http://localhost:8080/api/auth'; // Change this to match your backend URL if needed
+        let authState = {
+            authenticated: false,
+            loading: true,
+            token: null
+        };
+
+        // DOM Elements
+        const statusBox = document.getElementById('statusBox');
+        const loginBtn = document.getElementById('loginBtn');
+        const checkAuthBtn = document.getElementById('checkAuthBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const logEntries = document.getElementById('logEntries');
+
+        // Logging function
+        function addLogEntry(message, type = 'info') {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'log-time';
+            timeSpan.textContent = `[${timeStr}]`;
+
+            const messageSpan = document.createElement('span');
+            messageSpan.className = `log-${type}`;
+            messageSpan.textContent = ` ${message}`;
+
+            logEntry.appendChild(timeSpan);
+            logEntry.appendChild(messageSpan);
+
+            logEntries.appendChild(logEntry);
+            logEntries.scrollTop = logEntries.scrollHeight;
+        }
+
+        // Update UI based on auth state
+        function updateUI() {
+            if (authState.loading) {
+                statusBox.className = 'status-box status-loading';
+                statusBox.textContent = 'Checking authentication status...';
+                loginBtn.disabled = true;
+                checkAuthBtn.disabled = true;
+                logoutBtn.disabled = true;
+            } else if (authState.authenticated) {
+                statusBox.className = 'status-box status-authenticated';
+                statusBox.textContent = 'You are authenticated!';
+                loginBtn.disabled = true;
+                checkAuthBtn.disabled = false;
+                logoutBtn.disabled = false;
+            } else {
+                statusBox.className = 'status-box status-unauthenticated';
+                statusBox.textContent = 'You are not authenticated.';
+                loginBtn.disabled = false;
+                checkAuthBtn.disabled = false;
+                logoutBtn.disabled = true;
+            }
+        }
+
+        // Function to check authentication status
+        async function checkAuth() {
+            authState.loading = true;
+            updateUI();
+
+            try {
+                addLogEntry('Checking authentication status...', 'info');
+
+                const response = await fetch(`${API_BASE_URL}/check-auth`, {
+                    method: 'GET',
+                    credentials: 'include' // Important for cookies
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.authenticated) {
+                    authState.authenticated = true;
+                    addLogEntry('Authentication check successful - You are authenticated', 'success');
+                } else {
+                    authState.authenticated = false;
+                    addLogEntry(`Authentication check failed: ${data.message || 'Not authenticated'}`, 'error');
+                }
+            } catch (error) {
+                authState.authenticated = false;
+                addLogEntry(`Error checking authentication: ${error.message}`, 'error');
+            } finally {
+                authState.loading = false;
+                updateUI();
+            }
+        }
+
+        // Function to initiate login flow
+        async function initiateLogin() {
+            authState.loading = true;
+            updateUI();
+
+            try {
+                addLogEntry('Initiating authentication...', 'info');
+
+                const response = await fetch(`${API_BASE_URL}/initiate-auth`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    const stateToken = data.state;
+                    addLogEntry('Got state token, proceeding to auth callback', 'success');
+
+                    // In a real OAuth flow, you would redirect to the provider
+                    // Here we'll simulate by directly calling the callback endpoint
+                    window.location.href = `${API_BASE_URL}/auth-callback?state=${stateToken}`;
+                } else {
+                    addLogEntry(`Failed to initiate auth: ${data.errorMessage || 'Unknown error'}`, 'error');
+                    authState.loading = false;
+                    updateUI();
+                }
+            } catch (error) {
+                addLogEntry(`Error initiating authentication: ${error.message}`, 'error');
+                authState.loading = false;
+                updateUI();
+            }
+        }
+
+        // Function to handle manual token verification (useful for testing)
+        async function verifyToken(token) {
+            authState.loading = true;
+            updateUI();
+
+            try {
+                addLogEntry('Verifying token...', 'info');
+
+                const response = await fetch(`${API_BASE_URL}/verify-token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token }),
+                    credentials: 'include'
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.authenticated) {
+                    authState.authenticated = true;
+                    addLogEntry('Token verification successful', 'success');
+                } else {
+                    authState.authenticated = false;
+                    addLogEntry(`Token verification failed: ${data.message || 'Invalid token'}`, 'error');
+                }
+            } catch (error) {
+                authState.authenticated = false;
+                addLogEntry(`Error verifying token: ${error.message}`, 'error');
+            } finally {
+                authState.loading = false;
+                updateUI();
+            }
+        }
+
+        // Function to handle logout (clears cookies)
+        function logout() {
+            // Since your backend doesn't have a logout endpoint, we'll just clear auth state
+            // In a real app, you would call a logout endpoint that clears the cookie server-side
+            document.cookie = 'auth-token=; Max-Age=0; path=/; domain=' + window.location.hostname;
+            authState.authenticated = false;
+            authState.token = null;
+            addLogEntry('Logged out successfully', 'info');
+            updateUI();
+        }
+
+        // Event listeners
+        loginBtn.addEventListener('click', initiateLogin);
+        checkAuthBtn.addEventListener('click', checkAuth);
+        logoutBtn.addEventListener('click', logout);
+
+        // Initialize: Check for URL parameters on page load (for auth callback)
+        window.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+
+            if (urlParams.has('auth-return') && urlParams.get('auth-return') === 'true') {
+                addLogEntry('Returned from authentication flow, authentication successful!', 'success');
+                authState.authenticated = true;
+
+                // Clean the URL without reloading the page
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else if (urlParams.has('error')) {
+                addLogEntry(`Authentication error: ${urlParams.get('error')}`, 'error');
+            }
+
+            // Initial auth check
+            checkAuth();
+        });
+    </script>
+</body>
+
+</html>
